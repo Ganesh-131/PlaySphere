@@ -74,6 +74,9 @@ app.get("/profiles", async (req, res) => {
 
     res.json(data);
   });
+  const gameRoutes = require("./routes/gameRoutes");
+
+  app.use("/api/games", gameRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
