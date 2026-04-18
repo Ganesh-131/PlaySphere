@@ -15,6 +15,9 @@ exports.createGame = async (req, res) => {
         max_players,
         is_private,
         status: "waiting",
+        game_state: {
+          board: Array(9).fill(null),
+        },
       },
     ])
     .select()
@@ -163,5 +166,117 @@ exports.startGame = async (req, res) => {
 
   res.json({
     message: "Game started",
+  });
+};
+
+const checkWinner = (board) => {
+  const wins = [
+    [0,1,2], [3,4,5], [6,7,8],
+    [0,3,6], [1,4,7], [2,5,8],
+    [0,4,8], [2,4,6]
+  ];
+
+  for (let [a, b, c] of wins) {
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a];
+    }
+  }
+
+  return null;
+};
+
+exports.makeMove = async (req, res) => {
+  const { gameId, position } = req.body;
+  const userId = req.user.id;
+
+  // 1. get game
+  const { data: game, error: gameError } = await supabase
+    .from("games")
+    .select("*")
+    .eq("id", gameId)
+    .single();
+
+  if (gameError || !game) {
+    return res.status(404).json({ error: "Game not found" });
+  }
+
+  if (game.status !== "ongoing") {
+    return res.status(400).json({ error: "Game is not active" });
+  }
+
+  // 2. get players
+  const { data: players, error: playersError } = await supabase
+    .from("game_players")
+    .select("*")
+    .eq("game_id", gameId)
+    .order("player_order");
+
+  if (playersError) {
+    return res.status(400).json({ error: playersError.message });
+  }
+
+  const playerIndex = players.findIndex(p => p.user_id === userId);
+
+  if (playerIndex === -1) {
+    return res.status(403).json({ error: "Not part of this game" });
+  }
+
+  // 3. check turn
+  if (game.turn_index !== playerIndex) {
+    return res.status(400).json({ error: "Not your turn" });
+  }
+
+  // 4. get board
+  let board = game.game_state?.board;
+
+  // fallback if board not initialized
+  if (!board) {
+    board = Array(9).fill(null);
+  }
+
+  if (board[position] !== null) {
+    return res.status(400).json({ error: "Cell already filled" });
+  }
+
+  // 5. assign symbol
+  const symbol = playerIndex === 0 ? "X" : "O";
+
+  board[position] = symbol;
+
+  // check winner
+  const winnerSymbol = checkWinner(board);
+
+  let updateData = {
+    game_state: { board },
+  };
+
+  // if winner found
+  if (winnerSymbol) {
+    const winnerPlayer = players[winnerSymbol === "X" ? 0 : 1];
+
+    updateData.status = "finished";
+    updateData.winner_id = winnerPlayer.user_id;
+  } else if (board.every(cell => cell !== null)) {
+    // draw
+    updateData.status = "finished";
+    updateData.is_draw = true;
+  } else {
+    // continue game
+    updateData.turn_index = (game.turn_index + 1) % players.length;
+  }
+
+  // update DB
+  const { error: updateError } = await supabase
+    .from("games")
+    .update(updateData)
+    .eq("id", gameId);
+
+  if (updateError) {
+    return res.status(400).json({ error: updateError.message });
+  }
+
+  res.json({
+    message: "Move made",
+    board,
   });
 };
