@@ -1,19 +1,23 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useState } from "react";
+import { gameAPI } from "../api/game";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   
   const games = [
     {
-      id: "tictactoe-1",
+      id: "tictactoe",
       title: "Neon Tic-Tac-Toe",
-      description: "A classic reborn. Battle locally or against AI in a highly stylized 3x3 grid.",
+      description: "A classic reborn. Battle locally or against an opponent in a highly stylized 3x3 grid.",
       type: "Strategy",
-      players: "1-2",
+      players: "2",
       icon: "❌⭕",
       color: "from-blue-500 to-purple-500",
-      path: "/game/tictactoe"
+      gameType: "tic-tac-toe"
     },
     {
       id: "shooter-mock",
@@ -23,7 +27,7 @@ export default function Dashboard() {
       players: "1-4",
       icon: "🔫",
       color: "from-pink-500 to-rose-500",
-      path: "#"
+      gameType: "shooter"
     },
     {
       id: "chess-mock",
@@ -33,9 +37,27 @@ export default function Dashboard() {
       players: "2",
       icon: "♟️",
       color: "from-emerald-400 to-teal-500",
-      path: "#"
+      gameType: "chess"
     }
   ];
+
+  const handleCreateGame = async (game) => {
+    if (game.id === "tictactoe") {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await gameAPI.createGame(game.gameType, 2, false);
+        // Redirect to the game with the created game ID
+        navigate(`/game/${response.data.game.id}`);
+      } catch (err) {
+        console.error('Failed to create game:', err);
+        setError(err.response?.data?.error || 'Failed to create game');
+        setLoading(false);
+      }
+    } else {
+      setError('Game mode not yet available');
+    }
+  };
 
   return (
     <div className="h-full flex flex-col gap-8">
@@ -49,6 +71,9 @@ export default function Dashboard() {
         <div className="relative z-10">
           <h2 className="text-4xl font-bold text-white mb-2">Platform <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Hub</span></h2>
           <p className="text-slate-400 text-lg">Select an arena to deploy your operator.</p>
+          {error && (
+            <p className="text-red-400 text-sm mt-2">{error}</p>
+          )}
         </div>
       </motion.div>
 
@@ -63,7 +88,6 @@ export default function Dashboard() {
             transition={{ delay: index * 0.1 }}
             key={game.id}
             className="glass-panel flex flex-col overflow-hidden group hover:border-slate-500 transition-all cursor-pointer relative"
-            onClick={() => game.path !== "#" && navigate(game.path)}
           >
             {/* Card Graphic Top */}
             <div className={`h-32 bg-gradient-to-r ${game.color} opacity-80 group-hover:opacity-100 transition-opacity flex items-center justify-center relative overflow-hidden`}>
@@ -74,7 +98,7 @@ export default function Dashboard() {
             <div className="p-6 flex-1 flex flex-col">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-bold text-white">{game.title}</h3>
-                {game.path === "#" && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/30 uppercase font-bold tracking-widest">Locked</span>}
+                {game.id !== "tictactoe" && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/30 uppercase font-bold tracking-widest">Locked</span>}
               </div>
               <p className="text-slate-400 text-sm mb-6 flex-1">{game.description}</p>
               
@@ -84,10 +108,11 @@ export default function Dashboard() {
               </div>
 
               <button 
-                disabled={game.path === "#"}
+                onClick={() => handleCreateGame(game)}
+                disabled={game.id !== "tictactoe" || loading}
                 className="w-full bg-slate-800 text-white border border-slate-600 px-4 py-3 rounded-lg font-bold group-hover:bg-blue-600 group-hover:border-blue-500 disabled:opacity-50 disabled:group-hover:bg-slate-800 disabled:group-hover:border-slate-600 transition-all uppercase tracking-widest text-sm shadow-xl"
               >
-                {game.path === "#" ? "Coming Soon" : "Deploy"}
+                {loading ? 'Creating Game...' : (game.id === "tictactoe" ? "Deploy" : "Coming Soon")}
               </button>
             </div>
           </motion.div>

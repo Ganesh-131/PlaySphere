@@ -1,12 +1,18 @@
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Chat from "../components/Chat";
+import { gameAPI } from "../api/game";
 
 export default function Game() {
   const { id } = useParams();
+  const navigate = useNavigate();
   
   const [board, setBoard] = useState(Array(9).fill(null));
+  const [gameState, setGameState] = useState({ status: 'loading' });
+  const [currentPlayer, setCurrentPlayer] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [xIsNext, setXIsNext] = useState(true);
 
   // Local game logic
@@ -30,19 +36,66 @@ export default function Game() {
   const isFinished = winner || isDraw;
   const currentTurnSymbol = xIsNext ? 'X' : 'O';
 
-  const handleMove = (index) => {
+  // Try to fetch game state from backend
+  useEffect(() => {
+    const fetchGameState = async () => {
+      try {
+        // For now, we'll use local state since backend doesn't have a get game endpoint
+        // In production, you'd fetch: const response = await gameAPI.getGame(id);
+        setGameState({ status: 'ongoing', id });
+        setError(null);
+      } catch (err) {
+        console.warn('Could not fetch game state, using local mode:', err);
+        setGameState({ status: 'local', id });
+      }
+    };
+    fetchGameState();
+  }, [id]);
+
+  const handleMove = async (index) => {
     // Ignore if cell taken or game finished
     if (board[index] || isFinished) return;
     
-    const newBoard = [...board];
-    newBoard[index] = currentTurnSymbol;
-    setBoard(newBoard);
-    setXIsNext(!xIsNext);
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Send move to backend
+      const response = await gameAPI.makeMove(id, index);
+      
+      // Update board from backend response
+      const newBoard = response.data.board || board;
+      setBoard(newBoard);
+      setXIsNext(!xIsNext);
+    } catch (err) {
+      // If backend fails, fall back to local state
+      console.warn('Backend move failed, using local mode:', err);
+      const newBoard = [...board];
+      newBoard[index] = currentTurnSymbol;
+      setBoard(newBoard);
+      setXIsNext(!xIsNext);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetGame = () => {
     setBoard(Array(9).fill(null));
     setXIsNext(true);
+    setError(null);
+  };
+
+  const handleStartGame = async () => {
+    try {
+      setLoading(true);
+      await gameAPI.startGame(id);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to start game:', err);
+      setError(err.response?.data?.error || 'Failed to start game');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,10 +135,10 @@ export default function Game() {
             {board.map((cell, index) => (
               <motion.button
                 key={index}
-                whileHover={{ scale: cell || isFinished ? 1 : 1.05 }}
-                whileTap={{ scale: cell || isFinished ? 1 : 0.95 }}
+                whileHover={{ scale: cell || isFinished || loading ? 1 : 1.05 }}
+                whileTap={{ scale: cell || isFinished || loading ? 1 : 0.95 }}
                 onClick={() => handleMove(index)}
-                disabled={cell !== null || isFinished}
+                disabled={cell !== null || isFinished || loading}
                 className={`w-full h-full rounded-xl flex items-center justify-center text-6xl font-display transition-all ${
                   cell === null ? 'bg-white/5 hover:bg-white/10 border border-white/10' : 
                   cell === 'X' ? 'bg-neon-blue/10 border-neon-blue/50 text-neon-blue shadow-[inset_0_0_20px_rgba(0,240,255,0.2)]' : 
@@ -104,6 +157,20 @@ export default function Game() {
               </motion.button>
             ))}
           </div>
+
+          {error && (
+            <div className="mt-4 text-red-400 text-sm text-center bg-red-400/10 p-2 rounded border border-red-400/20">
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleStartGame}
+            disabled={loading || isFinished}
+            className="w-full mt-4 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-all font-semibold text-sm uppercase tracking-wider disabled:opacity-50"
+          >
+            {loading ? 'Starting...' : 'Start Game'}
+          </button>
         </motion.div>
       </div>
 

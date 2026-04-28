@@ -1,5 +1,6 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
 
 const friends = [
   { id: 1, name: "ShadowFiend", status: "online" },
@@ -9,6 +10,8 @@ const friends = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -17,6 +20,11 @@ export default function Sidebar() {
       case "offline": return "bg-gray-500";
       default: return "bg-gray-500";
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
   };
 
   return (
@@ -32,6 +40,9 @@ export default function Sidebar() {
           NEXUS
         </h1>
         <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Platform</p>
+        {user && (
+          <p className="text-xs text-neon-blue mt-2 truncate">{user.email}</p>
+        )}
       </div>
 
       <nav className="flex-1 space-y-4 relative z-10">
@@ -48,7 +59,7 @@ export default function Sidebar() {
 
       <div className="mt-auto relative z-10 pt-6 border-t border-white/10">
         <h3 className="text-sm font-display text-gray-400 mb-4 uppercase">Friends</h3>
-        <ul className="space-y-3">
+        <ul className="space-y-3 mb-6">
           {friends.map(friend => (
             <li key={friend.id} className="flex items-center gap-3">
               <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor(friend.status)}`}></div>
@@ -56,6 +67,13 @@ export default function Sidebar() {
             </li>
           ))}
         </ul>
+
+        <button
+          onClick={handleLogout}
+          className="w-full px-4 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-all font-semibold text-sm uppercase tracking-wider"
+        >
+          Logout
+        </button>
       </div>
     </motion.div>
   );

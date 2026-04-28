@@ -1,21 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
+import { gameAPI } from "../api/game";
 
 export default function Profile() {
-  const [user, setUser] = useState({ username: "ShadowFiend", role: "Elite Operator" });
-
-  useEffect(() => {
-    // If backend provided user details in localStorage
-    const saved = localStorage.getItem("user");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.username) {
-          setUser({ username: parsed.username, role: "Operator" });
-        }
-      } catch (e) {}
-    }
-  }, []);
+  const { user } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [username, setUsername] = useState("");
+  const [profiles, setProfiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const matchHistory = [
     { id: 1, opponent: "NeonBlade", result: "Victory", score: "1 - 0", date: "2H ago" },
@@ -23,6 +17,49 @@ export default function Profile() {
     { id: 3, opponent: "CyberNinja", result: "Victory", score: "1 - 0", date: "1D ago" },
     { id: 4, opponent: "Glitch", result: "Draw", score: "0 - 0", date: "2D ago" },
   ];
+
+  useEffect(() => {
+    if (user) {
+      setUsername(user.username || user.email.split('@')[0]);
+    }
+    fetchProfiles();
+  }, [user]);
+
+  const fetchProfiles = async () => {
+    try {
+      setLoading(true);
+      const response = await gameAPI.getProfiles();
+      setProfiles(response.data || []);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch profiles:', err);
+      setError('Failed to load profiles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!username || username.length < 3) {
+      setError('Username must be at least 3 characters');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await gameAPI.updateProfile(username);
+      setIsEditing(false);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+      setError(err.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate rank based on profiles
+  const userRank = profiles.findIndex(p => p.id === user?.id) + 1 || profiles.length + 1;
 
   return (
     <div className="max-w-4xl mx-auto h-full p-4">
@@ -42,18 +79,56 @@ export default function Profile() {
         </div>
 
         <div className="relative z-10">
-          <h1 className="text-4xl font-display font-bold text-white tracking-widest uppercase">{user.username}</h1>
-          <p className="text-neon-blue font-semibold mt-1 tracking-wider">{user.role}</p>
+          {!isEditing ? (
+            <>
+              <h1 className="text-4xl font-display font-bold text-white tracking-widest uppercase">{username}</h1>
+              <p className="text-neon-blue font-semibold mt-1 tracking-wider">{user?.email}</p>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="mt-4 px-4 py-2 bg-neon-blue/20 text-neon-blue border border-neon-blue/50 rounded-lg hover:bg-neon-blue/30 transition-all text-sm font-semibold"
+              >
+                Edit Profile
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-white/5 border border-neon-blue/50 rounded-lg px-4 py-2 text-white mb-3 focus:outline-none focus:ring-2 focus:ring-neon-blue"
+                placeholder="Enter new username"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUpdateProfile}
+                  disabled={loading}
+                  className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-all text-sm font-semibold disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg hover:bg-red-500/30 transition-all text-sm font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
           <div className="flex gap-6 mt-4">
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-widest">Rank</p>
-              <p className="text-xl font-display font-bold text-white mt-1">#4,289</p>
+              <p className="text-xl font-display font-bold text-white mt-1">#{userRank}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-widest">Win Rate</p>
-              <p className="text-xl font-display font-bold text-green-400 mt-1">70%</p>
+              <p className="text-xs text-gray-400 uppercase tracking-widest">Profiles Online</p>
+              <p className="text-xl font-display font-bold text-green-400 mt-1">{profiles.length}</p>
             </div>
           </div>
+          {error && (
+            <p className="text-red-400 text-sm mt-2">{error}</p>
+          )}
         </div>
       </motion.div>
 
