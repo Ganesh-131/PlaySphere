@@ -68,7 +68,8 @@ export default function Dashboard() {
 
         navigate(`/game/${gameId}`);
       } catch (err) {
-        console.error("Failed to create game:", err);
+        console.error("❌ FULL ERROR:", err);
+        console.log("❌ RESPONSE DATA:", err.response?.data);
         setError(err.response?.data?.error || "Failed to create game");
       } finally {
         setLoading(false);

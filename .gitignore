@@ -1,2 +1,11 @@
-node_modules/
+# Ignore all env files everywhere
 .env
+.env.*
+**/.env
+**/.env.*
+
+# Allow example file (important)
+!**/.env.example
+
+# Node modules
+node_modules/
