@@ -11,8 +11,8 @@ export const gameAPI = {
   getGame: (gameId) =>
     axiosClient.get(`/api/games/${gameId}`),
   // Join an existing game
-  joinGame: (gameId) =>
-    axiosClient.post('/api/games/join', { gameId }),
+  joinGame: (roomCode) =>
+    axiosClient.post('/api/games/join', { roomCode }),
   
   // Start a game (host only)
   startGame: (gameId) =>
