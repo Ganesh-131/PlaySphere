@@ -95,12 +95,12 @@ export default function Dashboard() {
   };
   return (
     <>
-    <div className="h-full flex flex-col gap-8">
+    <div className="flex flex-col gap-8 pb-10">
       {/* Platform Banner */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel p-8 relative overflow-hidden"
+        className="glass-panel p-8 relative"
       >
         <div className="absolute right-[-10%] top-[-50%] w-64 h-64 bg-blue-500/20 blur-[100px] pointer-events-none rounded-full"></div>
         <div className="relative z-10">
