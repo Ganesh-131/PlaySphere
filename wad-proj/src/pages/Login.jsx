@@ -1,31 +1,44 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login, signup } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({ email: "", password: "", username: "" });
   const [status, setStatus] = useState({ loading: false, error: null });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus({ loading: true, error: null });
 
-    // Simulate network delay
-    setTimeout(() => {
-      // Mock Login logic - accept any input for demonstration
-      if (formData.email && formData.password) {
-        localStorage.setItem("token", "dummy-jwt-token-123");
-        localStorage.setItem("user", JSON.stringify({
-          username: formData.username || formData.email.split('@')[0],
-          email: formData.email
-        }));
+    try {
+      if (isLogin) {
+        // Login flow
+        if (!formData.email || !formData.password) {
+          setStatus({ loading: false, error: "Please fill in all required fields." });
+          return;
+        }
+        await login(formData.email, formData.password);
         navigate("/dashboard");
       } else {
-        setStatus({ loading: false, error: "Please fill in all required fields." });
+        // Signup flow
+        if (!formData.email || !formData.password || !formData.username) {
+          setStatus({ loading: false, error: "Please fill in all required fields." });
+          return;
+        }
+        await signup(formData.email, formData.password, formData.username);
+        // After signup, switch to login mode to allow user to login
+        setIsLogin(true);
+        setFormData({ ...formData, password: "", username: "" });
+        setStatus({ loading: false, error: null });
+        setStatus({ loading: false, error: "Signup successful! Please login." });
       }
-    }, 1000);
+    } catch (err) {
+      setStatus({ loading: false, error: err.message });
+    }
   };
 
   return (
