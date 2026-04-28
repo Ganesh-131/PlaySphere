@@ -3,6 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Chat from "../components/Chat";
 import { gameAPI } from "../api/game";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 export default function Game() {
   const { id } = useParams();
@@ -13,7 +19,7 @@ export default function Game() {
   const [currentPlayer, setCurrentPlayer] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [xIsNext, setXIsNext] = useState(true);
+  
 
   // Local game logic
   const calculateWinner = (squares) => {
@@ -34,46 +40,55 @@ export default function Game() {
   const winner = calculateWinner(board);
   const isDraw = !winner && !board.includes(null);
   const isFinished = winner || isDraw;
-  const currentTurnSymbol = xIsNext ? 'X' : 'O';
+  
 
   // Try to fetch game state from backend
   useEffect(() => {
-    const fetchGameState = async () => {
-      try {
-        // For now, we'll use local state since backend doesn't have a get game endpoint
-        // In production, you'd fetch: const response = await gameAPI.getGame(id);
-        setGameState({ status: 'ongoing', id });
-        setError(null);
-      } catch (err) {
-        console.warn('Could not fetch game state, using local mode:', err);
-        setGameState({ status: 'local', id });
-      }
+    const channel = supabase
+      .channel(`game-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "games",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log("🔥 Realtime:", payload.new);
+
+          const newState = payload.new.game_state;
+
+          if (newState?.board) {
+            setBoard(newState.board);
+          }
+          setGameState(payload.new);
+        }
+      )
+      .subscribe((status) => {
+        console.log("📡 Subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
     };
-    fetchGameState();
   }, [id]);
 
   const handleMove = async (index) => {
     // Ignore if cell taken or game finished
-    if (board[index] || isFinished) return;
-    
+    if (board[index] || isFinished || loading) return;
+
     setLoading(true);
     setError(null);
 
     try {
       // Send move to backend
-      const response = await gameAPI.makeMove(id, index);
-      
-      // Update board from backend response
-      const newBoard = response.data.board || board;
-      setBoard(newBoard);
-      setXIsNext(!xIsNext);
+      await gameAPI.makeMove(id, index);
+      // ❌ DO NOT update board here
+      // Realtime will handle it
     } catch (err) {
-      // If backend fails, fall back to local state
-      console.warn('Backend move failed, using local mode:', err);
-      const newBoard = [...board];
-      newBoard[index] = currentTurnSymbol;
-      setBoard(newBoard);
-      setXIsNext(!xIsNext);
+      console.error('Move failed:', err);
+      setError(err.response?.data?.error || 'Move failed');
     } finally {
       setLoading(false);
     }
@@ -81,7 +96,6 @@ export default function Game() {
 
   const resetGame = () => {
     setBoard(Array(9).fill(null));
-    setXIsNext(true);
     setError(null);
   };
 
@@ -127,7 +141,10 @@ export default function Game() {
             <div className={`px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase ${
               !isFinished ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
             }`}>
-              {!isFinished ? `Turn: Player ${currentTurnSymbol}` : 'Finished'}
+              {gameState.status === "ongoing"
+                ? `Turn: ${gameState.turn_index === 0 ? "X" : "O"}`
+                : "Finished"
+              }
             </div>
           </div>
 

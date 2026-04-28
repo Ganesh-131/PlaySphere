@@ -7,6 +7,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedGame, setSelectedGame] = useState(null);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
   
   const games = [
     {
@@ -41,25 +45,56 @@ export default function Dashboard() {
     }
   ];
 
-  const handleCreateGame = async (game) => {
-    if (game.id === "tictactoe") {
+  const handleCreateGame = async () => {
+      if (loading) return;
+      if (!selectedGame) return;
+
       setLoading(true);
       setError(null);
+
       try {
-        const response = await gameAPI.createGame(game.gameType, 2, false);
-        // Redirect to the game with the created game ID
-        navigate(`/game/${response.data.game.id}`);
+        const response = await gameAPI.createGame(
+          selectedGame.gameType,
+          2,
+          isPrivate
+        );
+
+        const gameId = response.data.game.id;
+
+        // If private → show code first
+        if (isPrivate) {
+          alert(`Room Code: ${gameId}`);
+        }
+
+        navigate(`/game/${gameId}`);
       } catch (err) {
-        console.error('Failed to create game:', err);
-        setError(err.response?.data?.error || 'Failed to create game');
+        console.error("❌ FULL ERROR:", err);
+        console.log("❌ RESPONSE DATA:", err.response?.data);
+        setError(err.response?.data?.error || "Failed to create game");
+      } finally {
         setLoading(false);
+        setShowModal(false);
       }
-    } else {
-      setError('Game mode not yet available');
+    };
+  const handleJoinGame = async () => {
+    if (!joinCode || loading) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await gameAPI.joinGame(joinCode.trim());
+
+      navigate(`/game/${joinCode.trim()}`);
+    } catch (err) {
+      console.error("Join failed:", err);
+      setError(err.response?.data?.error || "Failed to join game");
+    } finally {
+      setLoading(false);
     }
   };
-
   return (
+    <>
     <div className="h-full flex flex-col gap-8">
       {/* Platform Banner */}
       <motion.div 
@@ -76,7 +111,25 @@ export default function Dashboard() {
           )}
         </div>
       </motion.div>
+          <div className="glass-panel p-6 flex flex-col gap-4 max-w-md">
+            <h3 className="text-white text-lg font-bold">Join Private Game</h3>
 
+            <input
+              type="text"
+              placeholder="Enter Room Code"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              className="px-4 py-2 rounded bg-slate-800 text-white border border-slate-600"
+            />
+
+            <button
+              onClick={handleJoinGame}
+              disabled={!joinCode || loading}
+              className="bg-green-600 px-4 py-2 rounded text-white disabled:opacity-50"
+            >
+              {loading ? "Joining..." : "Join Game"}
+            </button>
+          </div>
       {/* Game Catalog */}
       <h3 className="text-2xl font-bold text-white tracking-wider border-b border-white/10 pb-4">Game Catalog</h3>
       
@@ -108,7 +161,12 @@ export default function Dashboard() {
               </div>
 
               <button 
-                onClick={() => handleCreateGame(game)}
+                onClick={() => {
+                  if (game.id === "tictactoe") {
+                    setSelectedGame(game);
+                    setShowModal(true);
+                  }
+                }}
                 disabled={game.id !== "tictactoe" || loading}
                 className="w-full bg-slate-800 text-white border border-slate-600 px-4 py-3 rounded-lg font-bold group-hover:bg-blue-600 group-hover:border-blue-500 disabled:opacity-50 disabled:group-hover:bg-slate-800 disabled:group-hover:border-slate-600 transition-all uppercase tracking-widest text-sm shadow-xl"
               >
@@ -119,5 +177,42 @@ export default function Dashboard() {
         ))}
       </div>
     </div>
-  );
+    {showModal && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-slate-900 p-6 rounded-xl w-96 border border-slate-700">
+          <h2 className="text-white text-xl font-bold mb-4">
+            Create Game
+          </h2>
+
+          <label className="flex items-center gap-2 mb-4 text-slate-300">
+            <input
+              type="checkbox"
+              checked={isPrivate}
+              disabled={loading}
+              onChange={() => setIsPrivate(!isPrivate)}
+            />
+            Private Room
+          </label>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleCreateGame}
+              disabled={loading}
+              className="flex-1 bg-blue-600 px-4 py-2 rounded text-white disabled:opacity-50"
+            >
+              {loading ? "Creating..." : "Create"}
+            </button>
+
+            <button
+              onClick={() => setShowModal(false)}
+              className="flex-1 bg-slate-700 px-4 py-2 rounded text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }
