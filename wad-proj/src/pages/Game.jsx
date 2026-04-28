@@ -15,32 +15,44 @@ export default function Game() {
   const navigate = useNavigate();
   
   const [board, setBoard] = useState(Array(9).fill(null));
-  const [gameState, setGameState] = useState({ status: 'loading' });
+  const [gameState, setGameState] = useState({
+    status: 'waiting',
+    turn_index: 0,
+  });
   const [currentPlayer, setCurrentPlayer] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
 
-  // Local game logic
-  const calculateWinner = (squares) => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8],
-      [0, 3, 6], [1, 4, 7], [2, 5, 8],
-      [0, 4, 8], [2, 4, 6]
-    ];
-    for (let line of lines) {
-      const [a, b, c] = line;
-      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return squares[a];
-      }
-    }
-    return null;
-  };
-
-  const winner = calculateWinner(board);
-  const isDraw = !winner && !board.includes(null);
-  const isFinished = winner || isDraw;
   
+
+  const isFinished = gameState.status === "finished";
+  
+  useEffect(() => {
+    const fetchGame = async () => {
+      try {
+        const res = await gameAPI.getGame(id);
+
+        let state = res.data.game.game_state;
+
+        // parse if string
+        if (typeof state === "string") {
+          state = JSON.parse(state);
+        }
+
+        if (state?.board) {
+          setBoard(state.board);
+        }
+
+        setGameState(res.data.game);
+      } catch (err) {
+        console.error("Failed to fetch game:", err);
+      }
+    };
+
+    fetchGame();
+  }, [id]);
+
 
   // Try to fetch game state from backend
   useEffect(() => {
@@ -57,12 +69,20 @@ export default function Game() {
         (payload) => {
           console.log("🔥 Realtime:", payload.new);
 
-          const newState = payload.new.game_state;
+          let newState = payload.new.game_state;
+
+          // ✅ FIX: parse if string
+          if (typeof newState === "string") {
+            newState = JSON.parse(newState);
+          }
 
           if (newState?.board) {
             setBoard(newState.board);
           }
-          setGameState(payload.new);
+          setGameState((prev) => ({
+            ...payload.new,
+            players: prev.players, // ✅ KEEP players
+          }));
         }
       )
       .subscribe((status) => {
@@ -111,7 +131,19 @@ export default function Game() {
       setLoading(false);
     }
   };
+  const getWinnerSymbol = () => {
+    if (gameState.is_draw) return "draw";
 
+    if (!gameState.players) return null; // safety
+
+    const winner = gameState.players.find(
+      (p) => p.user_id === gameState.winner_id
+    );
+
+    if (!winner) return null;
+
+    return winner.player_order === 1 ? "X" : "O";
+  };
   return (
     <div className="h-full flex gap-6">
       
@@ -122,29 +154,22 @@ export default function Game() {
           animate={{ opacity: 1, scale: 1 }}
           className="glass-panel p-8 w-full max-w-lg mb-8 relative"
         >
-          {isFinished && (
-            <div className="absolute inset-0 bg-dark-space/80 backdrop-blur-sm z-20 rounded-2xl flex flex-col items-center justify-center">
-              <h2 className="text-5xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-neon-purple to-neon-pink mb-4">
-                {isDraw ? 'DRAW' : `${winner} WINS`}
-              </h2>
-              <button 
-                onClick={resetGame}
-                className="btn text-white border border-neon-blue bg-neon-blue/20 hover:bg-neon-blue/40 transition-all font-display uppercase tracking-widest text-sm py-3 px-8 rounded-lg shadow-glow-blue"
-              >
-                Play Again
-              </button>
-            </div>
-          )}
+          
 
           <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
             <h2 className="text-2xl font-display font-bold text-white tracking-wider">ARENA</h2>
             <div className={`px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase ${
-              !isFinished ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+              gameState.status === "ongoing"
+              ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+              : gameState.status === "waiting"
+              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+              : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
             }`}>
-              {gameState.status === "ongoing"
-                ? `Turn: ${gameState.turn_index === 0 ? "X" : "O"}`
-                : "Finished"
+              {gameState.status === "waiting" && "Waiting..."}
+              {gameState.status === "ongoing" &&
+                `Turn: ${gameState.turn_index === 0 ? "X" : "O"}`
               }
+              {gameState.status === "finished" && "Finished"}
             </div>
           </div>
 
@@ -175,19 +200,40 @@ export default function Game() {
             ))}
           </div>
 
+          {gameState.status === "finished" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl z-10">
+              
+              <h2 className="text-4xl font-bold text-white mb-4">
+                {gameState.is_draw
+                  ? "It's a Draw 🤝"
+                  : `${getWinnerSymbol()} Wins 🎉`
+                }
+              </h2>
+
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="mt-4 text-red-400 text-sm text-center bg-red-400/10 p-2 rounded border border-red-400/20">
               {error}
             </div>
           )}
 
-          <button
-            onClick={handleStartGame}
-            disabled={loading || isFinished}
-            className="w-full mt-4 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-all font-semibold text-sm uppercase tracking-wider disabled:opacity-50"
-          >
-            {loading ? 'Starting...' : 'Start Game'}
-          </button>
+          {gameState.status === "waiting" && (
+            <button
+              onClick={handleStartGame}
+              disabled={loading}
+              className="w-full mt-4 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-all font-semibold text-sm uppercase tracking-wider disabled:opacity-50"
+            >
+              {loading ? 'Starting...' : 'Start Game'}
+            </button>
+          )}
         </motion.div>
       </div>
 

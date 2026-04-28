@@ -11,6 +11,7 @@ app.use(cors({
   credentials: true,
   optionsSuccessStatus: 200
 }));
+
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -19,10 +20,9 @@ app.get("/", (req, res) => {
 
 const supabase = require("./config/supabase");
 
+// Test DB
 app.get("/test-db", async (req, res) => {
-  const { data, error } = await supabase
-    .from("test")
-    .select("*");
+  const { data, error } = await supabase.from("test").select("*");
 
   if (error) {
     return res.status(500).json({ error });
@@ -31,9 +31,11 @@ app.get("/test-db", async (req, res) => {
   res.json(data);
 });
 
+// Auth routes
 const authRoutes = require("./routes/authRoutes");
 app.use("/api/auth", authRoutes);
 
+// Protected route
 const authMiddleware = require("./middleware/authMiddleware");
 
 app.get("/protected", authMiddleware, (req, res) => {
@@ -46,10 +48,10 @@ app.get("/protected", authMiddleware, (req, res) => {
   });
 });
 
+// Profile update
 app.put("/profile", authMiddleware, async (req, res) => {
   const { username } = req.body;
 
-  // basic validation
   if (!username || username.length < 3) {
     return res.status(400).json({ error: "Username must be at least 3 characters" });
   }
@@ -71,6 +73,7 @@ app.put("/profile", authMiddleware, async (req, res) => {
   });
 });
 
+// Profiles list
 app.get("/profiles", async (req, res) => {
   const { data, error } = await supabase
     .from("profiles")
@@ -84,7 +87,7 @@ app.get("/profiles", async (req, res) => {
   res.json(data || []);
 });
 
-// Get games list
+// Games list
 app.get("/api/games/list", authMiddleware, async (req, res) => {
   const { data, error } = await supabase
     .from("games")
@@ -98,23 +101,7 @@ app.get("/api/games/list", authMiddleware, async (req, res) => {
   res.json(data || []);
 });
 
-// Get single game
-app.get("/api/games/:gameId", authMiddleware, async (req, res) => {
-  const { gameId } = req.params;
-
-  const { data, error } = await supabase
-    .from("games")
-    .select("*")
-    .eq("id", gameId)
-    .single();
-
-  if (error || !data) {
-    return res.status(404).json({ error: "Game not found" });
-  }
-
-  res.json(data);
-});
-
+// ✅ USE ROUTES (ONLY THIS — removed conflicting route)
 const gameRoutes = require("./routes/gameRoutes");
 app.use("/api/games", gameRoutes);
 
