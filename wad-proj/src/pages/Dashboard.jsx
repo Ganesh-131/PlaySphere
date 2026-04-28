@@ -60,10 +60,11 @@ export default function Dashboard() {
         );
 
         const gameId = response.data.game.id;
+        const roomCode = response.data.game.room_code;
 
         // If private → show code first
         if (isPrivate) {
-          alert(`Room Code: ${gameId}`);
+          alert(`Room Code: ${roomCode}`);
         }
 
         navigate(`/game/${gameId}`);
@@ -83,9 +84,9 @@ export default function Dashboard() {
     setError(null);
 
     try {
-      await gameAPI.joinGame(joinCode.trim());
+      const response = await gameAPI.joinGame(joinCode.trim());
 
-      navigate(`/game/${joinCode.trim()}`);
+      navigate(`/game/${response.data.gameId}`);
     } catch (err) {
       console.error("Join failed:", err);
       setError(err.response?.data?.error || "Failed to join game");

@@ -1,19 +1,39 @@
 const supabase = require("../config/supabase");
 
+const generateRoomCode = async () => {
+  while (true) {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Check only ACTIVE games (important!)
+    const { data } = await supabase
+      .from("games")
+      .select("id")
+      .eq("room_code", code)
+      .in("status", ["waiting", "ongoing"]); // only active
+
+    if (!data || data.length === 0) {
+      return code;
+    }
+  }
+};
+
 exports.createGame = async (req, res) => {
   const { game_type, max_players, is_private } = req.body;
 
   const userId = req.user.id;
+  const roomCode = await generateRoomCode();
 
   // 1. create game
   const { data: game, error: gameError } = await supabase
     .from("games")
+    
     .insert([
       {
         host_id: userId,
         game_type,
         max_players,
         is_private,
+        room_code: roomCode,
         status: "waiting",
         game_state: {
           board: Array(9).fill(null),
@@ -45,19 +65,23 @@ exports.createGame = async (req, res) => {
 
   res.json({
     message: "Game created",
-    game,
+    game: {
+      ...game,
+      room_code: roomCode, // ✅ ensure frontend gets it
+    },
   });
 };
 
 exports.joinGame = async (req, res) => {
-  const { gameId } = req.body;
+  const { roomCode } = req.body;
   const userId = req.user.id;
 
   // 1. get game
   const { data: game, error: gameError } = await supabase
     .from("games")
     .select("*")
-    .eq("id", gameId)
+    .eq("room_code", roomCode)
+    .in("status", ["waiting", "ongoing"]) // optional safety
     .single();
 
   if (gameError || !game) {
@@ -72,7 +96,7 @@ exports.joinGame = async (req, res) => {
   const { data: players, error: playersError } = await supabase
     .from("game_players")
     .select("*")
-    .eq("game_id", gameId);
+    .eq("game_id", game.id);
 
   if (playersError) {
     return res.status(400).json({ error: playersError.message });
@@ -93,7 +117,7 @@ exports.joinGame = async (req, res) => {
     .from("game_players")
     .insert([
       {
-        game_id: gameId,
+        game_id: game.id,
         user_id: userId,
         player_order: players.length + 1,
         role: "player",
@@ -106,6 +130,7 @@ exports.joinGame = async (req, res) => {
 
   res.json({
     message: "Joined game",
+    gameId: game.id, 
   });
 };
 
@@ -144,7 +169,7 @@ exports.startGame = async (req, res) => {
   const { data: players, error: playersError } = await supabase
     .from("game_players")
     .select("*")
-    .eq("game_id", gameId);
+    .eq("game_id", game.id);
 
   if (playersError) {
     return res.status(400).json({ error: playersError.message });
@@ -208,7 +233,7 @@ exports.makeMove = async (req, res) => {
   const { data: players, error: playersError } = await supabase
     .from("game_players")
     .select("*")
-    .eq("game_id", gameId)
+    .eq("game_id", game.id)
     .order("player_order");
 
   if (playersError) {

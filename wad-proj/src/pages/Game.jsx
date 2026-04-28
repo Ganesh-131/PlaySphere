@@ -10,7 +10,11 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+
+
 export default function Game() {
+  const [roomCode, setRoomCode] = useState(null);
+  const [copied, setCopied] = useState(false);
   const { id } = useParams();
   const navigate = useNavigate();
   
@@ -45,6 +49,7 @@ export default function Game() {
         }
 
         setGameState(res.data.game);
+        setRoomCode(res.data.game.room_code);
       } catch (err) {
         console.error("Failed to fetch game:", err);
       }
@@ -157,6 +162,40 @@ export default function Game() {
           
 
           <div className="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
+            {roomCode && (
+              <div className="flex items-center justify-between mb-4 px-4 py-2 bg-white/5 border border-white/10 rounded-lg">
+                
+                <span className="text-sm text-gray-400">
+                  Room Code:
+                </span>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-mono text-neon-blue tracking-widest">
+                    {roomCode}
+                  </span>
+
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(roomCode);
+                      setCopied(true);
+
+                      setTimeout(() => {
+                        setCopied(false);
+                      }, 1500);
+                    }}
+                    className={`px-2 py-1 text-xs rounded transition-all ${
+                      copied
+                        ? "bg-green-500/20 text-green-400 border border-green-500/40"
+                        : "bg-white/10 hover:bg-white/20 text-white"
+                    }`}
+                  >
+                    {copied ? "Copied!" : "Copy"}
+                  </motion.button>
+                </div>
+
+              </div>
+            )}
             <h2 className="text-2xl font-display font-bold text-white tracking-wider">ARENA</h2>
             <div className={`px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase ${
               gameState.status === "ongoing"
