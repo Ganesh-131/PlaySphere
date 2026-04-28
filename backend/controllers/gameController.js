@@ -280,3 +280,36 @@ exports.makeMove = async (req, res) => {
     board,
   });
 };
+
+exports.getGame = async (req, res) => {
+  console.log("🔥 getGame HIT");
+  const { id } = req.params;
+
+  // 1. get game
+  const { data: game, error: gameError } = await supabase
+    .from("games")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (gameError) {
+    return res.status(400).json({ error: gameError.message });
+  }
+
+  // 2. get players
+  const { data: players, error: playersError } = await supabase
+    .from("game_players")
+    .select("user_id, player_order")
+    .eq("game_id", id)
+    .order("player_order");
+
+  if (playersError) {
+    return res.status(400).json({ error: playersError.message });
+  }
+
+  // 3. attach players
+  game.players = players;
+
+  // 4. send response
+  res.json({ game });
+};

@@ -8,7 +8,8 @@ export const gameAPI = {
       max_players: maxPlayers, 
       is_private: isPrivate 
     }),
-  
+  getGame: (gameId) =>
+    axiosClient.get(`/api/games/${gameId}`),
   // Join an existing game
   joinGame: (gameId) =>
     axiosClient.post('/api/games/join', { gameId }),
